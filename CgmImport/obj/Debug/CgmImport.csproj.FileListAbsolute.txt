@@ -1,0 +1,9 @@
+D:\0temp\CgmImport\CgmImport\bin\Debug\CgmImport.exe.config
+D:\0temp\CgmImport\CgmImport\bin\Debug\NLog.config
+D:\0temp\CgmImport\CgmImport\bin\Debug\CgmImport.exe
+D:\0temp\CgmImport\CgmImport\bin\Debug\CgmImport.pdb
+D:\0temp\CgmImport\CgmImport\bin\Debug\NLog.dll
+D:\0temp\CgmImport\CgmImport\bin\Debug\NLog.xml
+D:\0temp\CgmImport\CgmImport\obj\Debug\CgmImport.csprojResolveAssemblyReference.cache
+D:\0temp\CgmImport\CgmImport\obj\Debug\CgmImport.exe
+D:\0temp\CgmImport\CgmImport\obj\Debug\CgmImport.pdb
