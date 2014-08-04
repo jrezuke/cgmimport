@@ -12,19 +12,21 @@ namespace CgmImport
     class Program
     {
         private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+        //private static List<DbColumn> _dbColList = new List<DbColumn>(); 
         static void Main(string[] args)
         {
             Logger.Info("Starting CGM Import Service");
 
             //get sites and load into list of siteInfo 
             var sites = GetSites();
+            
             //iterate sites
             foreach (var si in sites)
             {
                 Console.WriteLine("Site: " + si.Name);
                 //get site randomized studies - return list of ChecksImportInfo
                 var randList = GetRandimizedStudies(si.Id);
-                
+
                 //get the list of uploaded checks files in upload directory
                 var cgmFileList = GetCgmFileInfos(si.Name);
 
@@ -33,9 +35,9 @@ namespace CgmImport
                 {
                     //check for uploaded file
                     var fileInfo = cgmFileList.Find(x => x.SubjectId == subjectImportInfo.SubjectId);
-                    if(fileInfo != null)
+                    if (fileInfo != null)
                         fileInfo.IsRandomized = true;
-                    
+
                     //if already imported then skip
                     if (subjectImportInfo.IsCgmImported)
                     {
@@ -44,7 +46,7 @@ namespace CgmImport
                     }
 
                     //check if completed - if not then skip
-                    if (! subjectImportInfo.SubjectCompleted)
+                    if (!subjectImportInfo.SubjectCompleted)
                     {
                         Console.WriteLine("Subject not completed: " + subjectImportInfo.SubjectId);
                         continue;
@@ -57,7 +59,7 @@ namespace CgmImport
                         Console.WriteLine("Upload file not found: " + subjectImportInfo.SubjectId);
                         continue;
                     }
-                    
+
                     fileInfo.IsImportable = true;
                     Console.WriteLine("Subject is importable: " + subjectImportInfo.SubjectId);
 
@@ -68,21 +70,34 @@ namespace CgmImport
                 var notificationList = new List<string>();
                 foreach (var cgmFileInfo in cgmFileList)
                 {
-                    if (! cgmFileInfo.IsRandomized)
+                    if (!cgmFileInfo.IsRandomized)
                     {
                         Console.WriteLine("CGM file is not randomized: " + cgmFileInfo.SubjectId);
                         notificationList.Add("CGM file is not randomized: " + cgmFileInfo.FileName);
+                        continue;
                     }
 
                     if (cgmFileInfo.IsImportable)
                     {
-                        if (IsValidFile(cgmFileInfo))
+                        if (!IsValidFile(cgmFileInfo))
                         {
-                            
-                        }
-                        else
-                        {
+                            Console.WriteLine("CGM file is not a valid format: " + cgmFileInfo.FileName);
                             notificationList.Add("CGM file is not a valid format: " + cgmFileInfo.FileName);
+                            continue;
+                        }
+
+                        var dbRows = ParseFile(cgmFileInfo);
+                        if (! (dbRows.Count > 0))
+                        {
+                            Console.WriteLine("CGM file has no rows: " + cgmFileInfo.FileName);
+                            notificationList.Add("CGM file has no rows: " + cgmFileInfo.FileName);
+                            continue;
+                        }
+
+                        var subjRandInfo = randList.Find(x => x.SubjectId == cgmFileInfo.SubjectId);
+                        if (!IsValidDateRange(dbRows, cgmFileInfo, subjRandInfo))
+                        {
+
                         }
                     }
                 }
@@ -92,6 +107,56 @@ namespace CgmImport
             Console.Read();
         }
 
+        private static bool IsValidDateRange(List<DbRow> dbRows, CgmFileInfo cgmFileInfo, SubjectImportInfo subjectImportInfo)
+        {
+            //get checks first and last entries for subject
+            
+            GetFirstLastChecksSensorDates(cgmFileInfo, subjectImportInfo.StudyId);
+            if(!(cgmFileInfo.FirstChecksSendorDateTime != null && cgmFileInfo.LastChecksSensorDateTime !=null))
+            {
+                return false;
+            }
+            //if((cgmFileInfo.FirstChecksSendorDateTime.Value.CompareTo(subjectImportInfo.)
+
+            return true;
+        }
+        private static List<DbRow> ParseFile(CgmFileInfo cgmFileInfo)
+        {
+            var dbRows = new List<DbRow>();
+            using (var sr = new StreamReader(cgmFileInfo.FullName))
+            {
+                var rows = 0;
+                string line;
+                string[] colNameList = { };
+                
+                while ((line = sr.ReadLine()) != null)
+                {
+                    var columns = line.Split('\t');
+                    //first row contains the column names
+                    if (rows == 0)
+                    {
+                        colNameList = (string[])columns.Clone();
+                        rows++;
+                        continue;
+                    }
+
+                    var dbRow = new DbRow();
+                    //skip the first two columns - don't need - that's why i starts at 2
+                    for (int i = 2; i < columns.Length - 1; i++)
+                    {
+                        var col = columns[i];
+                        var colName = colNameList[i];
+                        
+                        var colValName = new DbColNameVal {Name = colName, Value = col};
+
+                        dbRow.ColNameVals.Add(colValName);
+                    }
+                    dbRows.Add(dbRow);
+                }
+            }
+            return dbRows;
+        }
+        
         private static bool IsValidFile(CgmFileInfo cgmFileInfo)
         {
             var fullFileName = cgmFileInfo.FullName;
@@ -103,7 +168,7 @@ namespace CgmImport
                     var line = sr.ReadLine();
                     if (line != null)
                     {
-                        if (! line.Contains("PatientInfoField	PatientInfoValue"))
+                        if (!line.Contains("PatientInfoField	PatientInfoValue"))
                         {
                             Console.WriteLine("***Invalid file: " + fullFileName);
                             Console.WriteLine(line);
@@ -121,9 +186,46 @@ namespace CgmImport
             return true;
         }
 
-        private static void GetFirstLastChecksDates(int studyId)
+        private static void GetFirstLastChecksSensorDates(CgmFileInfo cgmFileInfo, int studyId)
         {
-            
+            String strConn = ConfigurationManager.ConnectionStrings["Halfpint"].ToString();
+            SqlDataReader rdr = null;
+            using (var conn = new SqlConnection(strConn))
+            {
+                try
+                {
+                    var cmd = new SqlCommand("", conn) { CommandType = CommandType.StoredProcedure, CommandText = "GetChecksFirstAndLastSensorDateTime" };
+                    var param = new SqlParameter("@studyId", studyId);
+                    cmd.Parameters.Add(param);
+
+                    conn.Open();
+                    rdr = cmd.ExecuteReader();
+                    if (rdr.Read())
+                    {
+                        var pos = rdr.GetOrdinal("firstDate");
+                        if (! rdr.IsDBNull(pos))
+                        {
+                            cgmFileInfo.FirstChecksSendorDateTime = rdr.GetDateTime(pos);
+                        }
+
+                        pos = rdr.GetOrdinal("lastDate");
+                        if (!rdr.IsDBNull(pos))
+                        {
+                            cgmFileInfo.LastChecksSensorDateTime = rdr.GetDateTime(pos);
+                        }
+                    }
+                    rdr.Close();
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error(ex);
+                }
+                finally
+                {
+                    if (rdr != null)
+                        rdr.Close();
+                }
+            }
         }
 
         private static IEnumerable<SiteInfo> GetSites()
@@ -280,7 +382,7 @@ namespace CgmImport
         public int Id { get; set; }
         public string SiteId { get; set; }
         public string Name { get; set; }
-        
+
     }
 
     public class CgmFileInfo
@@ -288,6 +390,7 @@ namespace CgmImport
         public string FileName { get; set; }
         public string FullName { get; set; }
         public string SubjectId { get; set; }
+       
         public bool IsRandomized { get; set; }
         public bool IsValidFile { get; set; }
         public string InvalidReason { get; set; }
@@ -317,9 +420,9 @@ namespace CgmImport
         public DateTime? HistoryLastDateImported { get; set; }
         public int CommentsLastRowImported { get; set; }
         public int SensorLastRowImported { get; set; }
-       
+
         public List<EmailNotification> EmailNotifications { get; set; }
-        
+
     }
 
     public class EmailNotification
@@ -327,4 +430,26 @@ namespace CgmImport
         public string Message { get; set; }
 
     }
+
+    public class DbRow
+    {
+        public DbRow()
+        {
+            ColNameVals = new List<DbColNameVal>();    
+        }
+        public List<DbColNameVal> ColNameVals { get; set; }
+    }
+
+    public class DbColNameVal
+    {
+        public string Name { get; set; }
+        public string Value { get; set; }
+    }
+    //public class DbColumn
+    //{
+    //    public string Name { get; set; }
+    //    public string DataType { get; set; }
+    //    public string FieldType { get; set; }
+    //    public string Value { get; set; }
+    //}
 }
