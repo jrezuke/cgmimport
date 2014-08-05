@@ -5,6 +5,7 @@ using System.Data.SqlClient;
 using System.Configuration;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using NLog;
 
 namespace CgmImport
@@ -70,6 +71,10 @@ namespace CgmImport
                 var notificationList = new List<string>();
                 foreach (var cgmFileInfo in cgmFileList)
                 {
+                    if (cgmFileInfo.SubjectId == "18-0008-4")
+                    {
+                        var s = true;
+                    }
                     if (!cgmFileInfo.IsRandomized)
                     {
                         Console.WriteLine("CGM file is not randomized: " + cgmFileInfo.SubjectId);
@@ -95,9 +100,16 @@ namespace CgmImport
                         }
 
                         var subjRandInfo = randList.Find(x => x.SubjectId == cgmFileInfo.SubjectId);
-                        if (!IsValidDateRange(dbRows, cgmFileInfo, subjRandInfo))
+                        string message;
+                        if (!IsValidDateRange(dbRows, cgmFileInfo, subjRandInfo, out message))
                         {
-
+                            notificationList.Add(message);
+                            Console.WriteLine(message);
+                            continue;
+                        }
+                        if (message.Length > 0)
+                        {
+                            Console.WriteLine(message);
                         }
                     }
                 }
@@ -107,17 +119,30 @@ namespace CgmImport
             Console.Read();
         }
 
-        private static bool IsValidDateRange(List<DbRow> dbRows, CgmFileInfo cgmFileInfo, SubjectImportInfo subjectImportInfo)
+        private static bool IsValidDateRange(List<DbRow> dbRows, CgmFileInfo cgmFileInfo, SubjectImportInfo subjectImportInfo, out string message)
         {
             //get checks first and last entries for subject
-            
+            message = String.Empty;
             GetFirstLastChecksSensorDates(cgmFileInfo, subjectImportInfo.StudyId);
-            if(!(cgmFileInfo.FirstChecksSendorDateTime != null && cgmFileInfo.LastChecksSensorDateTime !=null))
+            if((cgmFileInfo.FirstChecksSendorDateTime == null || cgmFileInfo.LastChecksSensorDateTime ==null))
             {
+                message = "Could not get checks first and last glucose entry dates:" + cgmFileInfo.SubjectId;
                 return false;
             }
-            //if((cgmFileInfo.FirstChecksSendorDateTime.Value.CompareTo(subjectImportInfo.)
 
+
+            if ((cgmFileInfo.FirstChecksSendorDateTime.Value.Date.CompareTo(subjectImportInfo.DateRandomized.Value.Date) < 0))
+            {
+                message = "The first sensor date is earlier than the date randomized:" + cgmFileInfo.SubjectId;
+                return false;
+            }
+
+            if ((cgmFileInfo.LastChecksSensorDateTime.Value.Date.CompareTo(subjectImportInfo.DateCompleted.Value.Date) > 0))
+            {
+                message = "The last sensor date is later than the date completed:" + cgmFileInfo.SubjectId;
+                return false;
+            }
+            message = "Valid date range:" + cgmFileInfo.SubjectId;
             return true;
         }
         private static List<DbRow> ParseFile(CgmFileInfo cgmFileInfo)
@@ -307,30 +332,23 @@ namespace CgmImport
                         pos = rdr.GetOrdinal("Arm");
                         ci.Arm = rdr.GetString(pos);
 
-                        pos = rdr.GetOrdinal("ChecksImportCompleted");
-                        ci.ImportCompleted = !rdr.IsDBNull(pos) && rdr.GetBoolean(pos);
-
                         pos = rdr.GetOrdinal("IsCgmImported");
                         ci.IsCgmImported = !rdr.IsDBNull(pos) && rdr.GetBoolean(pos);
-
-                        pos = rdr.GetOrdinal("ChecksRowsCompleted");
-                        ci.RowsCompleted = !rdr.IsDBNull(pos) ? rdr.GetInt32(pos) : 0;
-
+                        
                         pos = rdr.GetOrdinal("ChecksLastRowImported");
                         ci.LastRowImported = !rdr.IsDBNull(pos) ? rdr.GetInt32(pos) : 0;
 
                         pos = rdr.GetOrdinal("DateCompleted");
-                        ci.SubjectCompleted = !rdr.IsDBNull(pos);
+                        if (!rdr.IsDBNull(pos))
+                        {
+                            ci.DateCompleted = rdr.GetDateTime(pos);
+                            ci.SubjectCompleted = true;
+                        }
 
-                        pos = rdr.GetOrdinal("ChecksHistoryLastDateImported");
-                        ci.HistoryLastDateImported = !rdr.IsDBNull(pos) ? (DateTime?)rdr.GetDateTime(pos) : null;
-
-                        pos = rdr.GetOrdinal("ChecksCommentsLastRowImported");
-                        ci.CommentsLastRowImported = !rdr.IsDBNull(pos) ? rdr.GetInt32(pos) : 0;
-
-                        pos = rdr.GetOrdinal("ChecksSensorLastRowImported");
-                        ci.SensorLastRowImported = !rdr.IsDBNull(pos) ? rdr.GetInt32(pos) : 0;
-
+                        pos = rdr.GetOrdinal("DateRandomized");
+                        if (! rdr.IsDBNull(pos))
+                            ci.DateRandomized = rdr.GetDateTime(pos);
+                        
                         pos = rdr.GetOrdinal("SiteName");
                         ci.SiteName = rdr.GetString(pos);
 
@@ -411,16 +429,13 @@ namespace CgmImport
         public int SiteId { get; set; }
         public string SiteName { get; set; }
         public int StudyId { get; set; }
-        public bool ImportCompleted { get; set; }
         public bool SubjectCompleted { get; set; }
-
         public bool IsCgmImported { get; set; }
         public int RowsCompleted { get; set; }
         public int LastRowImported { get; set; }
-        public DateTime? HistoryLastDateImported { get; set; }
-        public int CommentsLastRowImported { get; set; }
-        public int SensorLastRowImported { get; set; }
-
+        public DateTime? DateRandomized { get; set; }
+        public DateTime? DateCompleted { get; set; }
+       
         public List<EmailNotification> EmailNotifications { get; set; }
 
     }
