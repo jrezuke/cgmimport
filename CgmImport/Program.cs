@@ -121,29 +121,84 @@ namespace CgmImport
 
         private static bool IsValidDateRange(List<DbRow> dbRows, CgmFileInfo cgmFileInfo, SubjectImportInfo subjectImportInfo, out string message)
         {
+            var firstCgmGlucoseDate = GetFirstCgmGlucoseDate(dbRows);
+            if (firstCgmGlucoseDate == null)
+            {
+                message = "***Invalid date range: Could not get the first glucose date from file:" + cgmFileInfo.SubjectId;
+                return false;
+            }
+
+            var lastCgmGlucoseDate = GetLastCgmGlucoseDate(dbRows);
+            if (lastCgmGlucoseDate == null)
+            {
+                message = "***Invalid date range: Could not get the last glucose date from file:" + cgmFileInfo.SubjectId;
+                return false;
+            }
+
             //get checks first and last entries for subject
-            message = String.Empty;
             GetFirstLastChecksSensorDates(cgmFileInfo, subjectImportInfo.StudyId);
-            if((cgmFileInfo.FirstChecksSendorDateTime == null || cgmFileInfo.LastChecksSensorDateTime ==null))
+            if((cgmFileInfo.FirstChecksSensorDateTime == null || cgmFileInfo.LastChecksSensorDateTime ==null))
             {
-                message = "Could not get checks first and last glucose entry dates:" + cgmFileInfo.SubjectId;
+                message = "***Invalid date range: Could not get checks first and last glucose entry dates:" + cgmFileInfo.SubjectId;
                 return false;
             }
 
 
-            if ((cgmFileInfo.FirstChecksSendorDateTime.Value.Date.CompareTo(subjectImportInfo.DateRandomized.Value.Date) < 0))
+            if ((cgmFileInfo.FirstChecksSensorDateTime.Value.Date.CompareTo(firstCgmGlucoseDate.Value.Date) > 0))
             {
-                message = "The first sensor date is earlier than the date randomized:" + cgmFileInfo.SubjectId;
+                message = "***Invalid date range: The first sensor date(" + firstCgmGlucoseDate.Value.Date.ToShortDateString() + 
+                    ") is earlier than the first checks date(" +
+                    cgmFileInfo.FirstChecksSensorDateTime.Value.ToShortDateString() + 
+                    "):" + cgmFileInfo.SubjectId;
                 return false;
             }
 
-            if ((cgmFileInfo.LastChecksSensorDateTime.Value.Date.CompareTo(subjectImportInfo.DateCompleted.Value.Date) > 0))
+            if ((cgmFileInfo.LastChecksSensorDateTime.Value.Date.CompareTo(lastCgmGlucoseDate.Value.Date) < 0))
             {
-                message = "The last sensor date is later than the date completed:" + cgmFileInfo.SubjectId;
+                message = "***Invalid date range: The last sensor date(" + lastCgmGlucoseDate.Value.Date.ToShortDateString() + 
+                    ") is later than the last checks date(" + 
+                    cgmFileInfo.LastChecksSensorDateTime.Value.ToShortDateString() +  
+                    "):" + cgmFileInfo.SubjectId;
                 return false;
             }
             message = "Valid date range:" + cgmFileInfo.SubjectId;
             return true;
+        }
+
+        private static DateTime? GetFirstCgmGlucoseDate(IEnumerable<DbRow> dbRows)
+        {
+            //try getting the date from the first row
+            foreach (var dbRow in dbRows)
+            {
+                var datenv = dbRow.ColNameVals.Find(x => x.Name == "GlucoseInternalTime");
+                var date = GetDateFromNameValue(datenv.Value);
+                if (date != null)
+                    return date;
+
+            }
+            return null;
+        }
+
+        private static DateTime? GetLastCgmGlucoseDate(List<DbRow> dbRows)
+        {
+            //try getting the date from the first row
+            for(var i=dbRows.Count -1; i>0; i--)
+            {
+                var dbRow = dbRows[i];
+                var datenv = dbRow.ColNameVals.Find(x => x.Name == "GlucoseInternalTime");
+                var date = GetDateFromNameValue(datenv.Value);
+                if (date != null)
+                    return date;
+
+            }
+            return null;
+        }
+        private static DateTime? GetDateFromNameValue(string value )
+        {
+            DateTime date;
+            if (DateTime.TryParse(value, out date))
+                return date;
+            return null;
         }
         private static List<DbRow> ParseFile(CgmFileInfo cgmFileInfo)
         {
@@ -199,15 +254,11 @@ namespace CgmImport
                             Console.WriteLine(line);
                             return false;
                         }
-                        else
-                        {
-                            Console.WriteLine("Valid file: " + fullFileName);
-                        }
                     }
                 }
             }
 
-
+            Console.WriteLine("Valid file: " + fullFileName);
             return true;
         }
 
@@ -230,7 +281,7 @@ namespace CgmImport
                         var pos = rdr.GetOrdinal("firstDate");
                         if (! rdr.IsDBNull(pos))
                         {
-                            cgmFileInfo.FirstChecksSendorDateTime = rdr.GetDateTime(pos);
+                            cgmFileInfo.FirstChecksSensorDateTime = rdr.GetDateTime(pos);
                         }
 
                         pos = rdr.GetOrdinal("lastDate");
@@ -413,7 +464,7 @@ namespace CgmImport
         public bool IsValidFile { get; set; }
         public string InvalidReason { get; set; }
         public bool IsImportable { get; set; }
-        public DateTime? FirstChecksSendorDateTime { get; set; }
+        public DateTime? FirstChecksSensorDateTime { get; set; }
         public DateTime? LastChecksSensorDateTime { get; set; }
     }
 
@@ -460,11 +511,5 @@ namespace CgmImport
         public string Name { get; set; }
         public string Value { get; set; }
     }
-    //public class DbColumn
-    //{
-    //    public string Name { get; set; }
-    //    public string DataType { get; set; }
-    //    public string FieldType { get; set; }
-    //    public string Value { get; set; }
-    //}
+    
 }
