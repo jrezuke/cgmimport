@@ -19,7 +19,7 @@ namespace CgmImport
         {
             if (args.Length > 0)
             {
-                
+
             }
             Logger.Info("Starting CGM Import Service");
 
@@ -27,7 +27,7 @@ namespace CgmImport
 
             //get sites and load into list of siteInfo 
             var sites = GetSites();
-            
+
             //iterate sites
             foreach (var si in sites)
             {
@@ -81,7 +81,7 @@ namespace CgmImport
                     if (!cgmFileInfo.IsRandomized)
                     {
                         Console.WriteLine("CGM file is not randomized: " + cgmFileInfo.SubjectId);
-                        notificationList.Add(new EmailNotification { Message = "CGM file is not randomized: ", SubjectId  = cgmFileInfo.SubjectId});
+                        notificationList.Add(new EmailNotification { Message = "CGM file is not randomized: ", SubjectId = cgmFileInfo.SubjectId });
                         continue;
                     }
 
@@ -90,15 +90,15 @@ namespace CgmImport
                         if (!IsValidFile(cgmFileInfo))
                         {
                             Console.WriteLine("CGM file is not a valid format: " + cgmFileInfo.FileName);
-                            notificationList.Add(new EmailNotification { Message ="CGM file is not a valid format: ", SubjectId  = cgmFileInfo.SubjectId});
+                            notificationList.Add(new EmailNotification { Message = "CGM file is not a valid format: ", SubjectId = cgmFileInfo.SubjectId });
                             continue;
                         }
 
                         var dbRows = ParseFile(cgmFileInfo);
-                        if (! (dbRows.Count > 0))
+                        if (!(dbRows.Count > 0))
                         {
                             Console.WriteLine("CGM file has no rows: " + cgmFileInfo.FileName);
-                            notificationList.Add(new EmailNotification { Message = "CGM file has no rows: ", SubjectId = cgmFileInfo.SubjectId});
+                            notificationList.Add(new EmailNotification { Message = "CGM file has no rows: ", SubjectId = cgmFileInfo.SubjectId });
                             continue;
                         }
 
@@ -106,7 +106,7 @@ namespace CgmImport
                         string message;
                         if (!IsValidDateRange(dbRows, cgmFileInfo, subjRandInfo, out message))
                         {
-                            notificationList.Add(new EmailNotification { Message = message, SubjectId = cgmFileInfo.SubjectId});
+                            notificationList.Add(new EmailNotification { Message = message, SubjectId = cgmFileInfo.SubjectId });
                             Console.WriteLine(message);
                             continue;
                         }
@@ -115,13 +115,13 @@ namespace CgmImport
                             Console.WriteLine(message);
                         }
 
-                        //if (ImportToDatabase(dbRows, subjRandInfo))
-                        //{
-                        //    SetImportToCompleted(subjRandInfo.RandomizeId, subjRandInfo.SubjectId);
-                        //    Logger.Info("Subject " + subjRandInfo.SubjectId + " was successfully imported.");
-                        //    notificationList.Add(new EmailNotification { Message = "File was successfully imported", SubjectId = cgmFileInfo.SubjectId });
-                            
-                        //}
+                        if (ImportToDatabase(dbRows, subjRandInfo))
+                        {
+                            SetImportToCompleted(subjRandInfo.RandomizeId, subjRandInfo.SubjectId);
+                            Logger.Info("Subject " + subjRandInfo.SubjectId + " was successfully imported.");
+                            notificationList.Add(new EmailNotification { Message = "File was successfully imported", SubjectId = cgmFileInfo.SubjectId });
+
+                        }
                         notificationList.Add(new EmailNotification { Message = "File was successfully imported", SubjectId = cgmFileInfo.SubjectId });
                     }
                 }//end foreach (var cgmFileInfo in cgmFileList)
@@ -129,7 +129,7 @@ namespace CgmImport
                 //send emails
                 //Check to see if there are any notifications for this site
                 var anyNotifications = randList.FindAll(x => x.EmailNotifications.Count > 0);
-                if(anyNotifications.Count == 0 && notificationList.Count == 0)
+                if (anyNotifications.Count == 0 && notificationList.Count == 0)
                     continue;
 
                 var toEmails = GetStaffForEvent(15, si.Id);
@@ -145,7 +145,7 @@ namespace CgmImport
                 //        continue;
                 //    }
 
-                    
+
                 //    Console.WriteLine("Subject:" + subjectImportInfo.SubjectId);
                 //    //Console.WriteLine("________________________________________");
                 //    foreach (var emn in subjectImportInfo.EmailNotifications)
@@ -153,7 +153,7 @@ namespace CgmImport
                 //        Console.WriteLine("    " + emn.Message);
                 //    }
 
-                    
+
                 //    if (notifs.Count > 0 )
                 //    {
                 //        foreach (var emailNotification in notifs)
@@ -161,7 +161,7 @@ namespace CgmImport
                 //            emailNotification.IsNotified = true;
                 //            Console.WriteLine("    " + emailNotification.Message);                      
                 //        }
-                        
+
                 //    }
                 //}//end foreach (var subjectImportInfo in randList) send emails
             }//end foreach (var si in sites)
@@ -172,27 +172,27 @@ namespace CgmImport
 
         private static void SendEmailNotification(string[] toEmails, List<SubjectImportInfo> subjectNotifs, List<EmailNotification> fileNotifs, string basePath, string siteName)
         {
-            const string subject = "CGM Import Exception Notifications";
+            string subject = "CGM Import Exception Notifications for " + siteName;
             var sbBody = new StringBuilder("");
             const string newLine = "<br/>";
 
             sbBody.Append(newLine);
             sbBody.Append("<h2>CGM Import Exception Notifications</h2>");
-            
+
             string notification = string.Empty;
             foreach (var subInfo in subjectNotifs)
             {
                 var notifs = fileNotifs.FindAll(en => en.SubjectId == subInfo.SubjectId);
                 if (subInfo.EmailNotifications.Count == 0 && notifs.Count == 0)
                     continue;
-                
+
                 sbBody.Append("<h4>" + "Subject:" + subInfo.SubjectId + "</h4>");
                 sbBody.Append("<ul>");
                 foreach (var emn in subInfo.EmailNotifications)
                 {
-                    sbBody.Append("<li>" + emn.Message + "</li>"); 
+                    sbBody.Append("<li>" + emn.Message + "</li>");
                 }
-                
+
                 foreach (var emn in notifs)
                 {
                     sbBody.Append("<li>" + emn.Message + "</li>");
@@ -203,18 +203,18 @@ namespace CgmImport
             }
             foreach (var emn in fileNotifs)
             {
-                if(emn.IsNotified)
+                if (emn.IsNotified)
                     continue;
                 sbBody.Append("<h4>" + "Subject:" + emn.SubjectId + "</h4>");
                 sbBody.Append("<ul>");
                 sbBody.Append("<li>" + emn.Message + "</li>");
                 sbBody.Append("</ul>");
             }
-            
+
             SendHtmlEmail(subject, toEmails, null, sbBody.ToString(), basePath, siteName, "");
-    
+
         }
-        
+
         private static void SendHtmlEmail(string subject, string[] toAddress, IEnumerable<string> ccAddress,
             string bodyContent, string appPath, string siteName, string bodyHeader = "")
         {
@@ -243,7 +243,7 @@ namespace CgmImport
 
             sb.Append("</table>");
             sb.Append("</div style='width:100px'>");
-            
+
             sb.Append("</body>");
             sb.Append("</html>");
 
@@ -251,7 +251,7 @@ namespace CgmImport
 
             mailLogo.ContentId = "mailLogoID";
             av.LinkedResources.Add(mailLogo);
-            
+
             mm.AlternateViews.Add(av);
 
             foreach (string s in toAddress)
@@ -357,7 +357,7 @@ namespace CgmImport
                 }
                 catch (Exception ex)
                 {
-                    var sMsg = "Setting IsCgmImported = true failed: " + subjectId; 
+                    var sMsg = "Setting IsCgmImported = true failed: " + subjectId;
                     sMsg += ex.Message;
                     Logger.Error(sMsg, ex);
                 }
@@ -370,40 +370,48 @@ namespace CgmImport
             using (var conn = new SqlConnection(strConn))
             {
                 conn.Open();
-                var row = 1;
-                foreach (var dbRow in dbRows)
+                using (SqlTransaction trn = conn.BeginTransaction())
                 {
-                    var cmd = new SqlCommand
+                    var row = 1;
+                    foreach (var dbRow in dbRows)
                     {
-                        Connection = conn,
-                        CommandText = "AddDexcomRow",
-                        CommandType = CommandType.StoredProcedure
-                    };
+                        var cmd = new SqlCommand
+                        {
+                            Transaction = trn,
+                            Connection = conn,
+                            CommandText = "AddDexcomRow",
+                            CommandType = CommandType.StoredProcedure
+                        };
 
-                    var param = new SqlParameter("@studyId", subjRandInfo.StudyId);
-                    cmd.Parameters.Add(param);
-                    param = new SqlParameter("@subjectId", subjRandInfo.SubjectId);
-                    cmd.Parameters.Add(param);
-                    param = new SqlParameter("@siteId", subjRandInfo.SiteId);
-                    cmd.Parameters.Add(param);
-
-                    foreach (var col in dbRow.ColNameVals)
-                    {
-                        param = string.IsNullOrEmpty(col.Value) ? new SqlParameter("@" + col.Name, DBNull.Value) : new SqlParameter("@" + col.Name, col.Value);
+                        var param = new SqlParameter("@studyId", subjRandInfo.StudyId);
                         cmd.Parameters.Add(param);
+                        param = new SqlParameter("@subjectId", subjRandInfo.SubjectId);
+                        cmd.Parameters.Add(param);
+                        param = new SqlParameter("@siteId", subjRandInfo.SiteId);
+                        cmd.Parameters.Add(param);
+
+                        foreach (var col in dbRow.ColNameVals)
+                        {
+                            param = string.IsNullOrEmpty(col.Value)
+                                ? new SqlParameter("@" + col.Name, DBNull.Value)
+                                : new SqlParameter("@" + col.Name, col.Value);
+                            cmd.Parameters.Add(param);
+                        }
+                        try
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                        catch (Exception ex)
+                        {
+                            trn.Rollback();
+                            var sMsg = "dexcom import error subject: " + subjRandInfo.SubjectId + ", row: " + row;
+                            sMsg += ex.Message;
+                            Logger.Error(sMsg, ex);
+                            return false;
+                        }
+                        row++;
                     }
-                    try
-                    {
-                        cmd.ExecuteNonQuery();
-                    }
-                    catch (Exception ex)
-                    {
-                        var sMsg = "dexcom import error subject: " + subjRandInfo.SubjectId + ", row: " + row;
-                        sMsg += ex.Message;
-                        Logger.Error(sMsg, ex);
-                        return false;
-                    }
-                    row++;
+                    trn.Commit();
                 }
                 return true;
             }
@@ -427,7 +435,7 @@ namespace CgmImport
 
             //get checks first and last entries for subject
             GetFirstLastChecksSensorDates(cgmFileInfo, subjectImportInfo.StudyId);
-            if((cgmFileInfo.FirstChecksSensorDateTime == null || cgmFileInfo.LastChecksSensorDateTime ==null))
+            if ((cgmFileInfo.FirstChecksSensorDateTime == null || cgmFileInfo.LastChecksSensorDateTime == null))
             {
                 message = "Invalid date range: Could not get checks first and last glucose entry dates:";
                 return false;
@@ -436,18 +444,18 @@ namespace CgmImport
 
             if ((cgmFileInfo.FirstChecksSensorDateTime.Value.Date.CompareTo(firstCgmGlucoseDate.Value.Date) > 0))
             {
-                message = "Invalid date range: The first sensor date(" + firstCgmGlucoseDate.Value.Date.ToShortDateString() + 
+                message = "Invalid date range: The first sensor date(" + firstCgmGlucoseDate.Value.Date.ToShortDateString() +
                     ") is earlier than the first checks date(" +
-                    cgmFileInfo.FirstChecksSensorDateTime.Value.ToShortDateString() + 
+                    cgmFileInfo.FirstChecksSensorDateTime.Value.ToShortDateString() +
                     ")";
                 return false;
             }
 
             if ((cgmFileInfo.LastChecksSensorDateTime.Value.Date.CompareTo(lastCgmGlucoseDate.Value.Date) < 0))
             {
-                message = "Invalid date range: The last sensor date(" + lastCgmGlucoseDate.Value.Date.ToShortDateString() + 
-                    ") is later than the last checks date(" + 
-                    cgmFileInfo.LastChecksSensorDateTime.Value.ToShortDateString() +  
+                message = "Invalid date range: The last sensor date(" + lastCgmGlucoseDate.Value.Date.ToShortDateString() +
+                    ") is later than the last checks date(" +
+                    cgmFileInfo.LastChecksSensorDateTime.Value.ToShortDateString() +
                     ")";
                 return false;
             }
@@ -472,7 +480,7 @@ namespace CgmImport
         private static DateTime? GetLastCgmGlucoseDate(List<DbRow> dbRows)
         {
             //try getting the date from the first row
-            for(var i=dbRows.Count -1; i>0; i--)
+            for (var i = dbRows.Count - 1; i > 0; i--)
             {
                 var dbRow = dbRows[i];
                 var datenv = dbRow.ColNameVals.Find(x => x.Name == "GlucoseInternalTime");
@@ -483,7 +491,7 @@ namespace CgmImport
             }
             return null;
         }
-        private static DateTime? GetDateFromNameValue(string value )
+        private static DateTime? GetDateFromNameValue(string value)
         {
             DateTime date;
             if (DateTime.TryParse(value, out date))
@@ -498,7 +506,7 @@ namespace CgmImport
                 var rows = 0;
                 string line;
                 string[] colNameList = { };
-                
+
                 while ((line = sr.ReadLine()) != null)
                 {
                     var columns = line.Split('\t');
@@ -516,8 +524,8 @@ namespace CgmImport
                     {
                         var col = columns[i];
                         var colName = colNameList[i];
-                        
-                        var colValName = new DbColNameVal {Name = colName, Value = col};
+
+                        var colValName = new DbColNameVal { Name = colName, Value = col };
 
                         dbRow.ColNameVals.Add(colValName);
                     }
@@ -526,7 +534,7 @@ namespace CgmImport
             }
             return dbRows;
         }
-        
+
         private static bool IsValidFile(CgmFileInfo cgmFileInfo)
         {
             var fullFileName = cgmFileInfo.FullName;
@@ -569,7 +577,7 @@ namespace CgmImport
                     if (rdr.Read())
                     {
                         var pos = rdr.GetOrdinal("firstDate");
-                        if (! rdr.IsDBNull(pos))
+                        if (!rdr.IsDBNull(pos))
                         {
                             cgmFileInfo.FirstChecksSensorDateTime = rdr.GetDateTime(pos);
                         }
@@ -675,7 +683,7 @@ namespace CgmImport
 
                         pos = rdr.GetOrdinal("IsCgmImported");
                         ci.IsCgmImported = !rdr.IsDBNull(pos) && rdr.GetBoolean(pos);
-                        
+
                         pos = rdr.GetOrdinal("ChecksLastRowImported");
                         ci.LastRowImported = !rdr.IsDBNull(pos) ? rdr.GetInt32(pos) : 0;
 
@@ -687,9 +695,9 @@ namespace CgmImport
                         }
 
                         pos = rdr.GetOrdinal("DateRandomized");
-                        if (! rdr.IsDBNull(pos))
+                        if (!rdr.IsDBNull(pos))
                             ci.DateRandomized = rdr.GetDateTime(pos);
-                        
+
                         pos = rdr.GetOrdinal("SiteName");
                         ci.SiteName = rdr.GetString(pos);
 
@@ -749,7 +757,7 @@ namespace CgmImport
         public string FileName { get; set; }
         public string FullName { get; set; }
         public string SubjectId { get; set; }
-       
+
         public bool IsRandomized { get; set; }
         public bool IsValidFile { get; set; }
         public string InvalidReason { get; set; }
@@ -776,7 +784,7 @@ namespace CgmImport
         public int LastRowImported { get; set; }
         public DateTime? DateRandomized { get; set; }
         public DateTime? DateCompleted { get; set; }
-       
+
         public List<EmailNotification> EmailNotifications { get; set; }
 
     }
@@ -793,7 +801,7 @@ namespace CgmImport
     {
         public DbRow()
         {
-            ColNameVals = new List<DbColNameVal>();    
+            ColNameVals = new List<DbColNameVal>();
         }
         public List<DbColNameVal> ColNameVals { get; set; }
     }
@@ -803,5 +811,5 @@ namespace CgmImport
         public string Name { get; set; }
         public string Value { get; set; }
     }
-    
+
 }
