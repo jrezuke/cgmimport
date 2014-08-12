@@ -523,6 +523,11 @@ namespace CgmImport
                     for (int i = 2; i < 13; i++)
                     {
                         var col = columns[i];
+                        if (col == "High")
+                            col = "300";
+                        if (col == "Low")
+                            col = "0";
+
                         var colName = colNameList[i];
 
                         var colValName = new DbColNameVal { Name = colName, Value = col };
