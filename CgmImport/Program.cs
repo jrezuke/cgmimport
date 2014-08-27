@@ -27,7 +27,7 @@ namespace CgmImport
 
             //get sites and load into list of siteInfo 
             var sites = GetSites();
-
+            var skips = GetCgmSkips();
             //iterate sites
             foreach (var si in sites)
             {
@@ -103,12 +103,19 @@ namespace CgmImport
                         }
 
                         var subjRandInfo = randList.Find(x => x.SubjectId == cgmFileInfo.SubjectId);
-                        string message;
-                        if (!IsValidDateRange(dbRows, cgmFileInfo, subjRandInfo, out message))
+                        string message = string.Empty;
+                        if (! skips.Contains(subjRandInfo.SubjectId))
                         {
-                            notificationList.Add(new EmailNotification { Message = message, SubjectId = cgmFileInfo.SubjectId });
-                            Console.WriteLine(message);
-                            continue;
+                            if (!IsValidDateRange(dbRows, cgmFileInfo, subjRandInfo, out message))
+                            {
+                                notificationList.Add(new EmailNotification
+                                {
+                                    Message = message,
+                                    SubjectId = cgmFileInfo.SubjectId
+                                });
+                                Console.WriteLine(message);
+                                continue;
+                            }
                         }
                         if (message.Length > 0)
                         {
@@ -170,6 +177,35 @@ namespace CgmImport
             Console.Read();
         }
 
+        private static HashSet<string> GetCgmSkips()
+        {
+            var hash = new HashSet<string>();
+            String strConn = ConfigurationManager.ConnectionStrings["Halfpint"].ToString();
+            using (var conn = new SqlConnection(strConn))
+            {
+                try
+                {
+                    var cmd = new SqlCommand("", conn)
+                    {
+                        CommandType = CommandType.StoredProcedure,
+                        CommandText = ("GetDexcomSkips")
+                    };
+                    conn.Open();
+                    var rdr = cmd.ExecuteReader();
+
+                    while (rdr.Read())
+                    {
+                        hash.Add(rdr.GetString(0));
+                    }
+                    rdr.Close();
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error(ex);
+                }
+            }
+            return hash;
+        }
         private static void SendEmailNotification(string[] toEmails, List<SubjectImportInfo> subjectNotifs, List<EmailNotification> fileNotifs, string basePath, string siteName)
         {
             string subject = "CGM Import Exception Notifications for " + siteName;
