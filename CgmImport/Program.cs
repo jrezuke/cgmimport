@@ -93,7 +93,11 @@ namespace CgmImport
                             notificationList.Add(new EmailNotification { Message = "CGM file is not a valid format: ", SubjectId = cgmFileInfo.SubjectId });
                             continue;
                         }
-
+                        if (cgmFileInfo.SubjectId == "08-0160-5")
+                        {
+                            ;
+                        }
+                            
                         var dbRows = ParseFile(cgmFileInfo);
                         if (!(dbRows.Count > 0))
                         {
@@ -129,7 +133,11 @@ namespace CgmImport
                             notificationList.Add(new EmailNotification { Message = "File was successfully imported", SubjectId = cgmFileInfo.SubjectId });
 
                         }
-                        notificationList.Add(new EmailNotification { Message = "File was successfully imported", SubjectId = cgmFileInfo.SubjectId });
+                        else
+                        {
+                            notificationList.Add(new EmailNotification { Message = "File import failed", SubjectId = cgmFileInfo.SubjectId });    
+                        }
+                        
                     }
                 }//end foreach (var cgmFileInfo in cgmFileList)
 
@@ -174,7 +182,7 @@ namespace CgmImport
             }//end foreach (var si in sites)
 
 
-            Console.Read();
+            //Console.Read();
         }
 
         private static HashSet<string> GetCgmSkips()
@@ -546,6 +554,11 @@ namespace CgmImport
                 while ((line = sr.ReadLine()) != null)
                 {
                     var columns = line.Split('\t');
+                    if (string.IsNullOrEmpty(columns[2]))
+                    {
+                        break;
+                    }
+
                     //first row contains the column names
                     if (rows == 0)
                     {
@@ -558,6 +571,7 @@ namespace CgmImport
                     //skip the first two columns - don't need - that's why i starts at 2
                     for (int i = 2; i < 13; i++)
                     {
+                        
                         var col = columns[i];
                         if (col == "High")
                             col = "999";
