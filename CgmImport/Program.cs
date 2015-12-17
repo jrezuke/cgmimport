@@ -31,6 +31,9 @@ namespace CgmImport
             //iterate sites
             foreach (var si in sites)
             {
+                //TODO - comment this out
+                //if (si.Id != 2)
+                //    continue;
                 Console.WriteLine("Site: " + si.Name);
                 //get site randomized studies - return list of ChecksImportInfo
                 var randList = GetRandimizedStudies(si.Id);
